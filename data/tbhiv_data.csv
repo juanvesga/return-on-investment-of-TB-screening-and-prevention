@@ -1,0 +1,11 @@
+country,indicator,estimate,year
+KEN,pr_onart,0.7998,2019
+KEN,pr_onipt,0.32,2019
+ZAF,pr_onart,0.7084,2019
+ZAF,pr_onipt,0.63,2019
+IND,pr_onart,0.93,2019
+IND,pr_onipt,0,2019
+BRA,pr_onart,0.7084,2019
+BRA,pr_onipt,0.3,2019
+GEO,pr_onart,0.6478,2019
+GEO,pr_onipt,0.04,2019
