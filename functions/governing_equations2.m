@@ -37,7 +37,7 @@ end
 
 % -- Get all model components together
 
-allmat = M.lin + M.Dxlin + ...
+allmat = M.lin +...% M.Dxlin + ...
     M.nlinHIV.*foi + ...
     (M.nlin.a0_4.ds.*lam_ds(1))+...
     (M.nlin.a5_9.ds.*lam_ds(2))+...
@@ -73,13 +73,25 @@ out(i.U.a0_4.no_slum.hneg) = out(i.U.a0_4.no_slum.hneg) + ((births-births_slum)*
 % -- Get the auxiliaries
 auxil=zeros(i.nx,1);
 
-auxil(i.aux.inc)      = 0;% (agg.inc*(sel.inc.*allmat))*invec;
-auxil(i.aux.inc(2))   = 0;%(agg.inc(2,:)*(sel.inc.*allmat))*invec + sum((sel.acqu.*allmat)*invec);
-auxil(i.aux.notif)    = 0;%(agg.notif*(sel.notif.*allmat))*invec;
-auxil(i.aux.mort(1))  = 0;%sum(M.mortvec(:,2).*invec);
-auxil(i.aux.mort(2))  = 0;%sum(M.mortvec(:,3).*invec);
-auxil(i.aux.pt)       = 0;%(agg.ipt *(sel.ipt.*allmat))*invec;
-auxil(i.aux.newart)   = 0;%(agg.art *(sel.art.*allmat))*invec;
+if (t<2022)
+    auxil(i.aux.inc)      = (agg.inc*(sel.inc.*allmat))*invec;
+    auxil(i.aux.inc(2))   = (agg.inc(2,:)*(sel.inc.*allmat))*invec + sum((sel.acqu.*allmat)*invec);
+    auxil(i.aux.notif)    = (agg.notif*(sel.notif.*allmat))*invec;
+    auxil(i.aux.mort(1))  = sum(M.mortvec(:,2).*invec);
+    auxil(i.aux.mort(2))  = sum(M.mortvec(:,3).*invec);
+    auxil(i.aux.pt)       = (agg.ipt *(sel.ipt.*allmat))*invec;
+    auxil(i.aux.newart)   = (agg.art *(sel.art.*allmat))*invec;
+else
+    auxil(i.aux.inc)      = 0;
+    auxil(i.aux.inc(2))   = 0;
+    auxil(i.aux.notif)    = 0;
+    auxil(i.aux.mort(1)) = 0;
+    auxil(i.aux.mort(2)) = 0;
+    auxil(i.aux.pt)       = 0;
+    auxil(i.aux.newart)   = 0;
+
+
+end
 
 % HIV inc
 % if (t>1979)
@@ -92,6 +104,8 @@ auxil(i.aux.hiv)  = 0;
 %%auxilput interventions set to 0
 auxil(i.aux.inc_ds)= 0;
 auxil(i.aux.inc_dr)= 0;
+auxil(i.aux.inc_plhiv)= 0;
+auxil(i.aux.inc_slum)= 0;
 auxil(i.aux.screen_all)= 0;
 auxil(i.aux.screen_plhiv)= 0;
 auxil(i.aux.screen_hhc)= 0;
@@ -123,6 +137,12 @@ auxil(i.aux.yld_plhiv)=   0 ;
 auxil(i.aux.yld_slum)=   0 ;
 auxil(i.aux.mu_ds)= 0;
 auxil(i.aux.mu_dr)=  0;
+auxil(i.aux.yll_ptb)=  0;
+auxil(i.aux.mu_ptb)=  0;
+auxil(i.aux.yld_ptb)=  0;
+
+auxil(i.aux.lam_ds)=  lam_ds;
+auxil(i.aux.lam_dr)=  lam_mdr;
 
 out=[out;auxil((i.nstates+1):i.nx) ];
 

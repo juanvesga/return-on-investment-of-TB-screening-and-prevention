@@ -6,18 +6,12 @@ function M = make_model3(p, r, i, s, gps)
 % --- Get the linear rates ------------------------------------------------
 m  = zeros(i.nstates);     % Matrix for linear transitions in the model (i.e. except infection)
 m2 = zeros(i.nstates);    % slum Linear
-m14 = zeros(i.nstates);   % Linear components of HIV tx and prevention
 m3 = zeros(i.nstates);   % Linear components HIV cascade
 m4 = zeros(i.nstates);   % force of transition for HHC case finding U
-m5 = zeros(i.nstates);   % force of transition for HHC case finding Lf
-m6 = zeros(i.nstates);   % force of transition for HHC case finding Ls
-m7 = zeros(i.nstates);   % force of transition for HHC case finding I
 m8 = zeros(i.nstates);   % matrix for counting screening on plhiv
 m9 = zeros(i.nstates);   % matrix for counting screening on hhcU
-m10 = zeros(i.nstates);   % matrix for counting screening on hhcLf
-m11 = zeros(i.nstates);   % matrix for counting screening on hhcLs
-m12 = zeros(i.nstates);   % matrix for counting screening on hhcI
 m13 = zeros(i.nstates);   % matrix for counting screening on slum
+m14 = zeros(i.nstates);   % Linear components of HIV tx and prevention
 
 
 fot = zeros(1,i.nstates);% Elements in the force of transition for CFY
@@ -45,47 +39,65 @@ for ia = 1:length(gps.age)
 
             % Case finding (PLHIV)
             source = U; destin = Pu;
-            rate = p.case_finding_U(ia,ir,ig)*p.hiv_cov_tpt;
+            ch=1;%p.lam_ds(ia)+p.lam_dr(ia);
+
+            prop=p.case_finding_U(ia,ir,ig)*p.hiv_cov_tpt;
+            rate=ch*prop/(1-prop)* isnoslum * p.plhiv_boost;
+
+            % rate = p.case_finding_U(ia,ir,ig)*p.hiv_cov_tpt;
             m14(destin, source) = m14(destin, source) + rate;
 
-            % rate = p.hiv_cov*ishivart;
-            % m8(destin, source) = m8(destin, source) + rate;
 
+            %% HHC Case finding
 
-            % HHC Case finding
-            source = U; destin = Pu;
-            rate = p.case_findingHHC_U(ia,ir,ig) * p.cfy*p.hhc_a_cov_tpt(ia);
+            r_u=get_HHC_rate(2,p,ia,ch,'U',p.U_age_hhc,'tpt');
+
+            prop=p.case_findingHHC_U(ia,ir,ig) ;
+
+            rate=r_u * prop* r.hhc_scale(ia)*p.hhc_boost*p.hhcUfac;
+
             m4(destin, source) = m4(destin, source) + rate;
 
-            rate = p.cfy*p.hhc_a_cov_screen(ia)*ishneg*isnoslum;
+
+            r_u=get_HHC_rate(2,p,ia,ch,'U',p.U_age_hhc,'screen');
+
+            prop = 1 ;
+            
+            rate =  r_u * prop* r.hhc_scale(ia) * p.hhc_screen_dim *p.hhc_boost*p.hhcUfac;
+
             m9(destin, source) = m9(destin, source) + rate;
 
             % Case finding (slums)
             source = U; destin = Pu;
-            rate = p.case_findingslum_U(ia,ir,ig)*p.slum_cov_tpt*p.slum_enhance;
+            prop=p.case_findingslum_U(ia,ir,ig)*p.slum_cov_tpt;
+            rate= ishneg *p.slum_enhance*ch*prop/(1-prop)*p.slum_boost ;
             m2(destin, source) = m2(destin, source) + rate;
 
-            rate = p.slum_cov_screen*islum;
+            prop=p.slum_cov_screen;
+            
+            rate=ishneg *p.slum_enhance*islum*ch*prop/(1-prop)*p.slum_boost*p.slum_screen_dim; 
+            
             m13(destin, source) = m13(destin, source) + rate;
 
-
-
             % Regimen completion
-            r.outReg        =  12/(6*(1-p.tpt_short) + 3*p.tpt_short);
-            p.tpt_complete(1) = (p.tpt_base_comp*(1-p.tpt_short) + p.tpt_short/2*p.tpt_target_comp + p.tpt_short/2*p.tpt_target_compa0);
-            p.tpt_complete(2) = (p.tpt_base_comp*(1-p.tpt_short) + p.tpt_short*p.tpt_target_comp); 
-            p.tpt_complete(3) = (p.tpt_base_comp*(1-p.tpt_short) + p.tpt_short*p.tpt_target_comp); 
-            p.tpt_complete(4) = (p.tpt_base_comp*(1-p.tpt_short) + p.tpt_short*p.tpt_target_compa15p); 
+            r.outReg        =  12/((r.tpt_long_reg_dur_mo)*(1-p.tpt_short(ir,ig)) +...
+                (r.tpt_short_reg_dur_mo)*p.tpt_short(ir,ig));
+
+           tpt_efficacy=p.tpt_eff_plhiv(ig)*(p.tpt_short(ir,ig)*p.pteffi_short + (1-p.tpt_short(ir,ig))*p.pteffi);
+
+
+            p.tpt_complete(1) = (p.tpt_base_comp*(1-p.tpt_short(ir,ig)) + p.tpt_short(ir,ig)/2*p.tpt_target_comp + p.tpt_short(ir,ig)/2*p.tpt_target_compa0);
+            p.tpt_complete(2) = (p.tpt_base_comp*(1-p.tpt_short(ir,ig)) + p.tpt_short(ir,ig)*p.tpt_target_comp);
+            p.tpt_complete(3) = (p.tpt_base_comp*(1-p.tpt_short(ir,ig)) + p.tpt_short(ir,ig)*p.tpt_target_comp);
+            p.tpt_complete(4) = (p.tpt_base_comp*(1-p.tpt_short(ir,ig)) + p.tpt_short(ir,ig)*p.tpt_target_compa15p);
 
             r.tpt_default  = r.outReg.*(1-p.tpt_complete)./p.tpt_complete;
             source = Pu; destin = Qu; rate = r.outReg;
             m(destin, source) = m(destin, source) + rate;
 
-             % Regimen default
-             source = Pu; destin = Qu; rate = r.tpt_default(ia);
+            % Regimen default
+            source = Pu; destin = U; rate = r.tpt_default(ia);
             m(destin, source) = m(destin, source) + rate;
-               
-
 
             for is = 1:length(gps.strain)
                 strain = gps.strain{is};
@@ -97,68 +109,113 @@ for ia = 1:length(gps.age)
                 Ps    = gi('Ps');
                 Qf    = gi('Qf');
                 Qs    = gi('Qs');
-                I    = gi('I');
+                I     = gi('I');
                 Dx    = gi('Dx');
                 Tx    = gi('Tx');
                 Tx2   = gi('Tx2');
                 Rhi   = gi('Rhi');
                 R     = gi('R');
 
-
                 ismdr   = strcmp(strain, 'mdr');
 
-                % Case finding (PLHIV)
+                %% Pf to Ls
                 source = Lf; destin = Pf;
-                rate = p.case_finding_Lf(ia,ir,ig)*p.hiv_cov_tpt;
+
+                competing_hazard= r.progression(ir,ig)*r.RRprog_age(ia)+r.LTBI_stabil(ir,ig);
+              
+                %~~~~ Case finding (PLHIV)  
+                prop=p.case_finding_Lf(ia,ir,ig)*p.hiv_cov_tpt;
+                
+                rate=isnoslum * competing_hazard*prop/(1-prop)* p.plhiv_boost;
+                
                 m14(destin, source) = m14(destin, source) + rate;
 
-                % rate = p.hiv_cov*ishivart;
-                % m8(destin, source) = m8(destin, source) + rate;
+                %~~~~ HHC Case finding
+                if(ismdr==0) ;st='Lfds'; else; st='Lfdr'; end
+                r_lf=get_HHC_rate(ismdr,p,ia,competing_hazard,st,p.Lf_age_hhc,'tpt');
 
+                prop= p.case_findingHHC_Lf(ia,ir,ig);
+
+                rate=r_lf * prop* r.hhc_scale(ia)*p.hhc_boost*p.hhcLffac;
+                
+                
+                m4(destin, source) = m4(destin, source) + rate;
+
+
+                r_lf=get_HHC_rate(ismdr,p,ia,competing_hazard,st,p.Lf_age_hhc,'screen');
+
+                prop= 1;
+                
+                rate= r_lf * prop* r.hhc_scale(ia)*p.hhc_boost*p.hhc_screen_dim*p.hhcLffac;
+
+                m9(destin, source) = m9(destin, source) + rate;
+
+                %~~~~ Slum Case finding
+                prop= p.case_findingslum_Lf(ia,ir,ig)*p.slum_cov_tpt;
+
+                rate=ishneg * p.slum_enhance*competing_hazard*prop/(1-prop)* p.slum_boost ;
+                
+                m2(destin, source) = m2(destin, source) + rate;
+
+
+                prop=p.slum_cov_screen;
+                
+                rate=ishneg * islum*competing_hazard*prop/(1- prop)* p.slum_boost*p.slum_screen_dim; 
+                
+                m13(destin, source) = m13(destin, source) + rate;
+
+                %% Ps to Ls
                 source = Ls; destin = Ps;
-                rate = p.case_finding_Ls(ia,ir,ig)*p.hiv_cov_tpt;
+
+                competing_hazard= r.reactivation(ir,ig);
+                
+                %~~~~ Case finding (PLHIV)  
+                prop=p.case_finding_Ls(ia,ir,ig)*p.hiv_cov_tpt;
+                
+                rate = isnoslum * competing_hazard*prop/(1-prop)* p.plhiv_boost;
+                
                 m14(destin, source) = m14(destin, source) + rate;
 
-                % rate = p.hiv_cov*ishivart;
-                % m8(destin, source) = m8(destin, source) + rate;
+                %~~~~ HHC Case finding    
+                if(ismdr==0); st='Lsds'; else; st='Lsdr'; end
+                
+                r_ls=get_HHC_rate(ismdr,p,ia,competing_hazard,st,p.Ls_age_hhc,'tpt');
+
+                prop= p.case_findingHHC_Ls(ia,ir,ig);
+
+                rate=r_ls * prop* r.hhc_scale(ia)*p.hhc_boost*p.hhcLsfac;
+                
+                m4(destin, source) = m4(destin, source) + rate;
 
 
-                % HHC Case finding
-                source = Lf; destin = Pf;
-                rate = p.case_findingHHC_Lf(ia,ir,ig) * p.cfy*p.hhc_a_cov_tpt(ia);
-                m5(destin, source) = m5(destin, source) + rate;
+                r_ls=get_HHC_rate(ismdr,p,ia,competing_hazard,st,p.Ls_age_hhc,'screen');
 
-                rate = p.cfy*p.hhc_a_cov_screen(ia)*ishneg*isnoslum;
-                m10(destin, source) = m10(destin, source) + rate;
+                prop= 1;
+                
+                rate= r_ls * prop* r.hhc_scale(ia)*p.hhc_boost*p.hhc_screen_dim*p.hhcLsfac;
 
-                source = Ls; destin = Ps;
-                rate = p.case_findingHHC_Ls(ia,ir,ig) * p.cfy*p.hhc_a_cov_tpt(ia) ;
-                m6(destin, source) = m6(destin, source) + rate;
+                m9(destin, source) = m9(destin, source) + rate;
 
-                rate =  p.cfy*p.hhc_a_cov_screen(ia)*ishneg*isnoslum;
-                m11(destin, source) = m11(destin, source) + rate;
 
-                % Slum Case finding
-                source = Lf; destin = Pf;
-                rate = p.case_findingslum_Lf(ia,ir,ig)*p.slum_cov_tpt*p.slum_enhance;
+                %~~~~ Slum Case finding
+                prop= p.case_findingslum_Ls(ia,ir,ig)*p.slum_cov_tpt;
+
+                rate= ishneg*p.slum_enhance*competing_hazard*prop/(1-prop)* p.slum_boost ;
+                
                 m2(destin, source) = m2(destin, source) + rate;
 
-                rate = p.slum_cov_screen*islum;
+                prop=p.slum_cov_screen;
+                
+                rate=ishneg*islum*p.slum_enhance*competing_hazard*prop/(1-prop)* p.slum_boost*p.slum_screen_dim; 
+                
                 m13(destin, source) = m13(destin, source) + rate;
 
-                source = Ls; destin = Ps;
-                rate = p.case_findingslum_Ls(ia,ir,ig)*p.slum_cov_tpt*p.slum_enhance;
-                m2(destin, source) = m2(destin, source) + rate;
-
-                rate = p.slum_cov_screen*islum;
-                m13(destin, source) = m13(destin, source) + rate;
-
-                 % Regimen default
-                 source = Pf; destin = Qf;
-                 rate =  r.tpt_default(ia);
+                % Regimen default
+                source = Pf; destin = Lf;
+                rate =  r.tpt_default(ia);
                 m(destin, source) = m(destin, source) + rate;
 
-                source = Ps; destin = Qs;
+                source = Ps; destin = Ls;
                 rate = r.tpt_default(ia);
                 m(destin, source) = m(destin, source) + rate;
 
@@ -166,7 +223,7 @@ for ia = 1:length(gps.age)
 
                 % Regimen completion
                 if ismdr~=1
-                    source = Pf; destin = Qs; rate = r.outReg*(1-p.potency);
+                    source = Pf; destin = Qf; rate = r.outReg*(1-p.potency);
                     m(destin, source) = m(destin, source) + rate;
 
                     source = Ps; destin = Qs; rate = r.outReg*(1-p.potency);
@@ -179,7 +236,7 @@ for ia = 1:length(gps.age)
                     m(destin, source) = m(destin, source) + rate;
 
                 else
-                    source = Pf; destin = Qs; rate = r.outReg*(1-p.potency)*p.rif_free;
+                    source = Pf; destin = Qf; rate = r.outReg*(1-p.potency)*p.rif_free;
                     m(destin, source) = m(destin, source) + rate;
 
                     source = Ps; destin = Qs; rate = r.outReg*(1-p.potency)*p.rif_free;
@@ -210,32 +267,33 @@ for ia = 1:length(gps.age)
                 source = Ls; destin = I; rate = r.reactivation(ir,ig);
                 m(destin, source) = m(destin, source) + rate;
 
+                % --- Reactivation with PT effect
+               
+                source = Pf; 
+                destin = [I,  Ps];
+                rates = [r.progression(ir,ig)*r.RRprog_age(ia)*ismdr*(1-tpt_efficacy*p.effondr) +...
+                    r.progression(ir,ig)*r.RRprog_age(ia)*(1-ismdr)*(1-tpt_efficacy),...
+                    r.LTBI_stabil(ir,ig)];
+                m(destin, source) = m(destin, source) + rates';
+
                 source  = Qf;
                 destins = [I,                 Qs];
-                rates   = [r.progression(ir,ig)*r.RRprog_age(ia), r.LTBI_stabil(ir,ig)];
                 m(destins, source) = m(destins, source) + rates';
 
-                % --- Reactivation
-                source = Qs; destin = I; rate = r.reactivation(ir,ig);
-                m(destin, source) = m(destin, source) + rate;
-
-
-                % --- Reactivation with PT effect
-                source = Pf; destin = I;
-                rate = r.progression(ir,ig)*r.RRprog_age(ia)*ismdr*(1-p.pteffi*p.effondr) +...
-                    r.progression(ir,ig)*r.RRprog_age(ia)*(1-ismdr)*(1-p.pteffi);
-                m(destin, source) = m(destin, source) + rate;
 
                 source = Ps; destin = I;
-                rate = r.reactivation(ir,ig)*ismdr*(1-p.pteffi*p.effondr) +...
-                    r.reactivation(ir,ig)*(1-ismdr)*(1-p.pteffi);
+                rate = r.reactivation(ir,ig)*ismdr*(1-tpt_efficacy*p.effondr) +...
+                    r.reactivation(ir,ig)*(1-ismdr)*(1-tpt_efficacy);
+                m(destin, source) = m(destin, source) + rate;
+
+                source = Qs; destin = I; 
                 m(destin, source) = m(destin, source) + rate;
 
 
-                % Careseeking 
+                % Careseeking
 
                 source = I; destin = Dx;
-                rate= r.careseeking;
+                rate= r.careseeking*r.cseek_fac(ig)*r.cseek_fac_slum(ir);
                 m(destin, source) = m(destin, source) + rate;
 
 
@@ -247,7 +305,7 @@ for ia = 1:length(gps.age)
 
                 p_secondline=p.Tx_init2*ismdr*p.xpert*p.xpert_sens;
 
-                     p_ltfu  = 1-( p.Tx_init * ( ...
+                p_ltfu  = 1-( p.Tx_init * ( ...
                     ( (1-ismdr)*p.xpert*p.xpert_sens) +...
                     ( (1-p.xpert)*p.smear_sens ) ...
                     ) + ...
@@ -262,67 +320,63 @@ for ia = 1:length(gps.age)
                 m(destin, source) = m(destin, source) + rate';
 
 
-                % FOT
+                %% FOT
                 rate=r.Dx*(p_firstline+p_secondline);
                 sw=p.cfy>0;
                 fot(1,I)= rate*sw;
 
 
-
-                % Interventionn Case finding (PLHIV)
+                %% Screening I to Tx and Tx2
                 source = I;
                 destin = [Tx  Tx2];
-                rates = [p.case_finding_I(ia,ir,ig)*(1-ismdr)*p.hiv_cov_screen ,...
-                    p.case_finding_I(ia,ir,ig)*(ismdr)*p.hiv_cov_screen];
+                competing_hazard= r.careseeking*r.cseek_fac(ig)*r.cseek_fac_slum(ir);
+                
+                %~~~~~~ Case finding (PLHIV)
+                prop=p.case_finding_I(ia,ir,ig)*p.hiv_cov_screen;
+                rate= isnoslum * competing_hazard*prop/(1-prop)* p.plhiv_boost;
+                rates= [rate*(1-ismdr) , rate*ismdr];
+
                 m14(destin, source) = m14(destin, source) + rates';
 
-                % rates = [p.hiv_cov*(1-ismdr)*ishivart ,...
-                %     p.hiv_cov*(ismdr)*ishivart];
-                % m8(destin, source) = m8(destin, source) + rates';
+
+                %~~~~~~ Case finding HHC Case finding
+                if(ismdr==0); st='Ids'; else; st='Idr'; end
+                r_i=get_HHC_rate(ismdr,p,ia,competing_hazard,st,p.I_age_hhc,'screen');
+
+                prop= p.case_findingHHC_I(ia,ir,ig) * p.base_hhc_fac;
+
+                rates=[...
+                    r_i * prop * (1-ismdr) *...
+                    r.hhc_scale(ia)*p.hhc_boost*p.hhcIfac,...
+                    r_i * prop * (ismdr) *...
+                    r.hhc_scale(ia)*p.hhc_boost*p.hhcIfac];
+                m4(destin, source) = m4(destin, source) + rates';
+
+                r_i=get_HHC_rate(ismdr,p,ia,competing_hazard,st,p.I_age_hhc,'screen');
+
+                prop=1;
+
+                rates=[...
+                    r_i * prop * (1-ismdr) *...
+                    r.hhc_scale(ia)*p.hhc_boost*p.hhcIfac,...
+                    r_i * prop * (ismdr) *...
+                    r.hhc_scale(ia)*p.hhc_boost*p.hhcIfac];
+
+                m9(destin, source) = m9(destin, source) + rates';
 
 
+                %~~~~~~ Case finding (slum)
+                prop=p.case_findingslum_I(ia,ir,ig)*p.slum_cov_screen;
+                rate = ishneg * competing_hazard*prop/(1-prop)* p.slum_boost ;
+                rates= [rate*(1-ismdr) , rate*ismdr ];
 
-                %Interventionn Case finding HHC Case finding
-                source = I;
-                destin = [Tx  Tx2];
-                rates = [p.case_findingHHC_I(ia,ir,ig)*(1-ismdr)* p.cfy*p.hhc_a_cov_screen(ia) ,...
-                    p.case_findingHHC_I(ia,ir,ig)*(ismdr)* p.cfy*p.hhc_a_cov_screen(ia)];
-                m7(destin, source) = m7(destin, source) + rates';
-
-                rates = [(1-ismdr)* p.cfy*p.hhc_a_cov_screen(ia)*ishneg*isnoslum ,...
-                    (ismdr)* p.cfy*p.hhc_a_cov_screen(ia)*ishneg*isnoslum];
-                m12(destin, source) = m12(destin, source) + rates';
-
-                source = Dx;
-                destin = [Tx  Tx2];
-                rates = [p.case_findingHHC_I(ia,ir,ig)*(1-ismdr)* p.cfy*p.hhc_a_cov_screen(ia) ,...
-                    p.case_findingHHC_I(ia,ir,ig)*(ismdr)* p.cfy*p.hhc_a_cov_screen(ia)];
-                m7(destin, source) = m7(destin, source) + rates';
-
-                rates = [(1-ismdr)* p.cfy*p.hhc_a_cov_screen(ia)*ishneg*isnoslum ,...
-                    (ismdr)* p.cfy*p.hhc_a_cov_screen(ia)*ishneg*isnoslum];
-                m12(destin, source) = m12(destin, source) + rates';
-
-                % Interventionn Case finding (slum)
-                source = I;
-                destin = [Tx  Tx2];
-                rates = [p.case_findingslum_I(ia,ir,ig)*(1-ismdr)*p.slum_cov_screen ,...
-                    p.case_findingslum_I(ia,ir,ig)*(ismdr)*p.slum_cov_screen];
                 m2(destin, source) = m2(destin, source) + rates';
 
-                rates = [(1-ismdr)*p.slum_cov_screen*islum ,...
-                    (ismdr)*p.slum_cov_screen*islum];
-                m13(destin, source) = m13(destin, source) + rates';
 
-
-                source = Dx;
-                destin = [Tx  Tx2];
-                rates = [p.case_findingslum_I(ia,ir,ig)*(1-ismdr)*p.slum_cov_screen ,...
-                    p.case_findingslum_I(ia,ir,ig)*(ismdr)*p.slum_cov_screen];
-                m2(destin, source) = m2(destin, source) + rates';
-
-                rates = [(1-ismdr)*p.slum_cov_screen*islum ,...
-                    (ismdr)*p.slum_cov_screen*islum];
+                prop= p.slum_cov_screen;
+                rate =ishneg * islum * competing_hazard*prop/(1-prop)* p.slum_boost ;
+                rates= [rate*(1-ismdr) , rate*ismdr];
+        
                 m13(destin, source) = m13(destin, source) + rates';
 
 
@@ -352,11 +406,12 @@ for ia = 1:length(gps.age)
                 rates   = [r.Tx(2),    r.default(2)];
                 m(destins, source) = m(destins, source) + rates';
 
-                 % --- Relapse
+                % --- Relapse
                 sources = [Rhi, R];
-                destin  = I;
+                destin  = Dx;
                 rates   = r.relapse;
                 m(destin, sources) = m(destin, sources) + rates;
+
 
                 sources = Rhi;
                 destin  = R;
@@ -365,6 +420,7 @@ for ia = 1:length(gps.age)
 
                 % --- Self cure
                 rate = r.self_cure(ig);
+
                 source = I;
                 destin = Rhi;
                 m(destin, source) = m(destin, source) + rate;
@@ -373,7 +429,7 @@ for ia = 1:length(gps.age)
                 source = Dx;
                 destin = Rhi;
                 m(destin, source) = m(destin, source) + rate;
-                
+
 
 
             end
@@ -408,26 +464,26 @@ m(inds) = m(inds) + rates;
 
 %% HIV cascade
 % HIV acquisition
-sources = intersect(s.a0_4,s.hneg);
-destins = intersect(s.a0_4,s.hpos);
+sources = intersect(s.a0_4,intersect(s.hneg, s.no_slum));
+destins = intersect(s.a0_4,intersect(s.hpos, s.no_slum));
 rates   = p.hivcq_ad(1);
 inds    = sub2ind([i.nstates, i.nstates],destins,sources);
 m3(inds) = m3(inds) + rates;
 
-sources = intersect(s.a5_9,s.hneg);
-destins = intersect(s.a5_9,s.hpos);
+sources = intersect(s.a5_9,intersect(s.hneg, s.no_slum));
+destins = intersect(s.a5_9,intersect(s.hpos, s.no_slum));
 rates   = p.hivcq_ad(2);
 inds    = sub2ind([i.nstates, i.nstates],destins,sources);
 m3(inds) = m3(inds) + rates;
 
-sources = intersect(s.a10_15,s.hneg);
-destins = intersect(s.a10_15,s.hpos);
+sources = intersect(s.a10_15,intersect(s.hneg, s.no_slum));
+destins = intersect(s.a10_15,intersect(s.hpos, s.no_slum));
 rates   = p.hivcq_ad(3);
 inds    = sub2ind([i.nstates, i.nstates],destins,sources);
 m3(inds) = m3(inds) + rates;
 
-sources = intersect(s.a15p,s.hneg);
-destins = intersect(s.a15p,s.hpos);
+sources = intersect(s.a15p,intersect(s.hneg, s.no_slum));
+destins = intersect(s.a15p,intersect(s.hpos, s.no_slum));
 rates   = p.hivcq_ad(4);
 inds    = sub2ind([i.nstates, i.nstates],destins,sources);
 m3(inds) = m3(inds) + rates;
@@ -439,17 +495,20 @@ m3(inds) = m3(inds) + rates;
 for ia = 1:length(gps.age)
     age = gps.age{ia};
 
+    hpos=intersect(s.hpos, s.no_slum);
+    hart=intersect(s.hart, s.no_slum);
+
     % U tp U
-    sources = intersect(intersect(s.hpos,s.U),s.(age));
-    destins = intersect(intersect(s.hart,s.U),s.(age));
+    sources = intersect(intersect(hpos,s.U),s.(age));
+    destins = intersect(intersect(hart,s.U),s.(age));
     rates   =  r.ART_init *...
         (1 - (p.IPThiv + (1-p.IPThiv) * p.hiv_cov_tpt * p.case_findingPLHIV_U(ia)));
     inds    = sub2ind([i.nstates, i.nstates],destins,sources);
     m(inds) = m(inds) + rates;
 
     % U to Pu
-    sources = intersect(intersect(s.hpos,s.U),s.(age));
-    destins = intersect(intersect(s.hart,s.Pu),s.(age));
+    sources = intersect(intersect(hpos,s.U),s.(age));
+    destins = intersect(intersect(hart,s.Pu),s.(age));
     rates   =  r.ART_init *...
         ( p.IPThiv + (1-p.IPThiv) * p.hiv_cov_tpt * p.case_findingPLHIV_U(ia));
     inds    = sub2ind([i.nstates, i.nstates],destins,sources);
@@ -462,16 +521,16 @@ for ia = 1:length(gps.age)
     m8(inds) = m8(inds) + rates;
 
     % Lf to :Lf
-    sources = intersect(intersect(s.hpos,s.Lf),s.(age));
-    destins = intersect(intersect(s.hart,s.Lf),s.(age));
+    sources = intersect(intersect(hpos,s.Lf),s.(age));
+    destins = intersect(intersect(hart,s.Lf),s.(age));
     rates   =  r.ART_init *...
         (1 - (p.IPThiv + (1-p.IPThiv) * p.hiv_cov_tpt * p.case_findingPLHIV_Lf(ia)));
     inds    = sub2ind([i.nstates, i.nstates],destins,sources);
     m(inds) = m(inds) + rates;
 
     % Lf to P
-    sources = intersect(intersect(s.hpos,s.Lf),s.(age));
-    destins = intersect(intersect(s.hart,s.Pf),s.(age));
+    sources = intersect(intersect(hpos,s.Lf),s.(age));
+    destins = intersect(intersect(hart,s.Pf),s.(age));
     rates   =  r.ART_init *...
         ( p.IPThiv + (1-p.IPThiv) * p.hiv_cov_tpt * p.case_findingPLHIV_Lf(ia));
     inds    = sub2ind([i.nstates, i.nstates],destins,sources);
@@ -484,16 +543,16 @@ for ia = 1:length(gps.age)
     m8(inds) = m8(inds) + rates;
 
     % Ls to Ls
-    sources = intersect(intersect(s.hpos,s.Ls),s.(age));
-    destins = intersect(intersect(s.hart,s.Ls),s.(age));
+    sources = intersect(intersect(hpos,s.Ls),s.(age));
+    destins = intersect(intersect(hart,s.Ls),s.(age));
     rates   =  r.ART_init *...
         (1 - (p.IPThiv + (1-p.IPThiv) * p.hiv_cov_tpt * p.case_findingPLHIV_Ls(ia)));
     inds    = sub2ind([i.nstates, i.nstates],destins,sources);
     m(inds) = m(inds) + rates;
 
     % Ls to P
-    sources = intersect(intersect(s.hpos,s.Ls),s.(age));
-    destins = intersect(intersect(s.hart,s.Ps),s.(age));
+    sources = intersect(intersect(hpos,s.Ls),s.(age));
+    destins = intersect(intersect(hart,s.Ps),s.(age));
     rates   =  r.ART_init *...
         ( p.IPThiv + (1-p.IPThiv) * p.hiv_cov_tpt * p.case_findingPLHIV_Ls(ia));
     inds    = sub2ind([i.nstates, i.nstates],destins,sources);
@@ -506,81 +565,88 @@ for ia = 1:length(gps.age)
     m8(inds) = m8(inds) + rates;
 
     % I to I
-    sources = intersect(intersect(s.hpos,s.I),s.(age));
-    destins = intersect(intersect(s.hart,s.I),s.(age));
-    rates   = 1- p.case_findingPLHIV_I(ia) * p.hiv_cov_screen;
+    sources = intersect(intersect(hpos,s.I),s.(age));
+    destins = intersect(intersect(hart,s.I),s.(age));
+    rates   = r.ART_init *...
+    (1- p.case_findingPLHIV_I(ia) * p.hiv_cov_screen);
     inds    = sub2ind([i.nstates, i.nstates],destins,sources);
     m(inds) = m(inds) + rates;
-
-
-     % I to I
-    sources = intersect(intersect(s.hpos,s.I),s.(age));
-    destins = intersect(intersect(s.hart,s.I),s.(age));
-    rates   = 1- p.case_findingPLHIV_I(ia) * p.hiv_cov_screen;
-    inds    = sub2ind([i.nstates, i.nstates],destins,sources);
-    m(inds) = m(inds) + rates;
-
 
     % Dx to Dx
-    sources = intersect(intersect(s.hpos,s.Dx),s.(age));
-    destins = intersect(intersect(s.hart,s.Dx),s.(age));
-    rates   = 1- p.case_findingPLHIV_I(ia) * p.hiv_cov_screen;
+    sources = intersect(intersect(hpos,s.Dx),s.(age));
+    destins = intersect(intersect(hart,s.Dx),s.(age));
+    rates   = r.ART_init *...
+    (1- p.case_findingPLHIV_I(ia) * p.hiv_cov_screen);
     inds    = sub2ind([i.nstates, i.nstates],destins,sources);
     m(inds) = m(inds) + rates;
 
     % I to Tx
-    sources = intersect(intersect(intersect(s.hpos,s.I),s.(age)),s.ds);
-    destins = intersect(intersect(intersect(s.hart,s.Tx),s.(age)),s.ds);
-    rates   = p.case_findingPLHIV_I(ia) * p.hiv_cov_screen;
+    sources = intersect(intersect(intersect(hpos,s.I),s.(age)),s.ds);
+    destins = intersect(intersect(intersect(hart,s.Tx),s.(age)),s.ds);
+    rates   = r.ART_init *...
+    p.case_findingPLHIV_I(ia) * p.hiv_cov_screen;
     inds    = sub2ind([i.nstates, i.nstates],destins,sources);
     m(inds) = m(inds) + rates;
+
+    % count screen
+    rates   = r.ART_init *p.hiv_cov_screen;
+    inds    = sub2ind([i.nstates, i.nstates],destins,sources);
+    m8(inds) = m8(inds) + rates;
 
     % Dx to Tx
-    sources = intersect(intersect(intersect(s.hpos,s.Dx),s.(age)),s.ds);
-    destins = intersect(intersect(intersect(s.hart,s.Tx),s.(age)),s.ds);
-    rates   = p.case_findingPLHIV_I(ia) * p.hiv_cov_screen;
-    inds    = sub2ind([i.nstates, i.nstates],destins,sources);
-    m(inds) = m(inds) + rates;
+    % sources = intersect(intersect(intersect(s.hpos,s.Dx),s.(age)),s.ds);
+    % destins = intersect(intersect(intersect(s.hart,s.Tx),s.(age)),s.ds);
+    % rates   = p.case_findingPLHIV_I(ia) * p.hiv_cov_screen;
+    % inds    = sub2ind([i.nstates, i.nstates],destins,sources);
+    % m(inds) = m(inds) + rates;
+    % 
+    % % count screen
+    % rates   = p.hiv_cov_screen;
+    % inds    = sub2ind([i.nstates, i.nstates],destins,sources);
+    % m8(inds) = m8(inds) + rates;
 
-
-
-    % count screen
-    rates   = p.hiv_cov_screen;
-    inds    = sub2ind([i.nstates, i.nstates],destins,sources);
-    m8(inds) = m8(inds) + rates;
 
     % I to Tx2
-    sources = intersect(intersect(intersect(s.hpos,s.I),s.(age)),s.mdr);
-    destins = intersect(intersect(intersect(s.hart,s.Tx2),s.(age)),s.mdr);
-    rates   = p.case_findingPLHIV_I(ia) * p.hiv_cov_screen;
+    sources = intersect(intersect(intersect(hpos,s.I),s.(age)),s.mdr);
+    destins = intersect(intersect(intersect(hart,s.Tx2),s.(age)),s.mdr);
+    rates   = r.ART_init*p.case_findingPLHIV_I(ia) * p.hiv_cov_screen;
     inds    = sub2ind([i.nstates, i.nstates],destins,sources);
     m(inds) = m(inds) + rates;
-
-    % Dx to Tx2
-    sources = intersect(intersect(intersect(s.hpos,s.Dx),s.(age)),s.mdr);
-    destins = intersect(intersect(intersect(s.hart,s.Tx2),s.(age)),s.mdr);
-    rates   = p.case_findingPLHIV_I(ia) * p.hiv_cov_screen;
-    inds    = sub2ind([i.nstates, i.nstates],destins,sources);
-    m(inds) = m(inds) + rates;
-
 
     % count screen
-    rates   = p.hiv_cov_screen;
+    rates   = r.ART_init*p.hiv_cov_screen;
     inds    = sub2ind([i.nstates, i.nstates],destins,sources);
     m8(inds) = m8(inds) + rates;
+
+    % Dx to Tx2
+    % sources = intersect(intersect(intersect(s.hpos,s.Dx),s.(age)),s.mdr);
+    % destins = intersect(intersect(intersect(s.hart,s.Tx2),s.(age)),s.mdr);
+    % rates   = p.case_findingPLHIV_I(ia) * p.hiv_cov_screen;
+    % inds    = sub2ind([i.nstates, i.nstates],destins,sources);
+    % m(inds) = m(inds) + rates;
+    % 
+    % 
+    % % count screen
+    % rates   = p.hiv_cov_screen;
+    % inds    = sub2ind([i.nstates, i.nstates],destins,sources);
+    % m8(inds) = m8(inds) + rates;
 
 end
 
 %------- slum/no_slum turnover (applies only for Brazil prison)
 
-sources = intersect(s.a15p,s.no_slum);
-destins = intersect(s.a15p,s.slum);
+no_slum=intersect(s.hneg, s.no_slum);
+slum=intersect(s.hneg, s.slum);
+
+
+sources = intersect(s.a15p,no_slum);
+destins = intersect(s.a15p,slum);
 rates   = p.entry_highrisk;
 inds    = sub2ind([i.nstates, i.nstates],destins,sources);
 m(inds) = m(inds) + rates;
 
-sources = intersect(s.a15p,s.slum);
-destins = intersect(s.a15p,s.no_slum);
+sources = intersect(s.a15p,slum);
+destins = intersect(s.a15p,no_slum);
 rates   = p.out_highrisk;
 inds    = sub2ind([i.nstates, i.nstates],destins,sources);
 m(inds) = m(inds) + rates;
@@ -593,50 +659,12 @@ m(inds) = m(inds) + rates;
 M.lin    = sparse(m - diag(sum(m,1)));
 M.slumlin  = sparse(m2 - diag(sum(m2,1)));
 M.linHIV   = sparse(m14 - diag(sum(m14,1)));
-% M.nlinHIV = sparse(m3 - diag(sum(m3,1)));
-% M.fot = sparse(fot);
-M.cfy_U = sparse(m4 - diag(sum(m4,1)));
-M.cfy_Lf = sparse(m5 - diag(sum(m5,1)));
-M.cfy_Ls = sparse(m6 - diag(sum(m6,1)));
-M.cfy_I = sparse(m7 - diag(sum(m7,1)));
+M.linHHC = sparse(m4 - diag(sum(m4,1)));
 M.screen_hiv = sparse(m8 - diag(sum(m8,1)));
-M.screen_U = sparse(m9 - diag(sum(m9,1)));
-M.screen_Lf = sparse(m10 - diag(sum(m10,1)));
-M.screen_Ls = sparse(m11 - diag(sum(m11,1)));
-M.screen_I = sparse(m12 - diag(sum(m12,1)));
+M.screen_hhc = sparse(m9 - diag(sum(m9,1)));
 M.screen_slum = sparse(m13 - diag(sum(m13,1)));
-
-% M.lin    = (m - diag(sum(m,1)));
-% M.slumlin  = (m2 - diag(sum(m2,1)));
 M.nlinHIV = sparse(m3 - diag(sum(m3,1)));
 M.fot = fot;
-% M.cfy_U = m4 - diag(sum(m4,1));
-% M.cfy_Lf = m5 - diag(sum(m5,1));
-% M.cfy_Ls = m6 - diag(sum(m6,1));
-% M.cfy_I = m7 - diag(sum(m7,1));
-% M.screen_hiv = (m8 - diag(sum(m8,1)));
-% M.screen_U = (m9 - diag(sum(m9,1)));
-% M.screen_Lf = (m10 - diag(sum(m10,1)));
-% M.screen_Ls = (m11 - diag(sum(m11,1)));
-% M.screen_I = (m12 - diag(sum(m12,1)));
-% M.screen_slum = (m13 - diag(sum(m13,1)));
-
- % spr=@(M) 1e2*numel(nonzeros(M))/prod(size(M));
-% 
-% spr(M.lin   )% (m - diag(sum(m,1)));
-% spr(M.slumlin )% (m2 - diag(sum(m2,1)));
-% spr(M.nlinHIV)% (m3 - diag(sum(m3,1)));
-% spr(M.fot)% fot;
-% spr(M.cfy_U)% m4 - diag(sum(m4,1));
-% spr(M.cfy_Lf)% m5 - diag(sum(m5,1));
-% spr(M.cfy_Ls)% m6 - diag(sum(m6,1));
-% spr(M.cfy_I)% m7 - diag(sum(m7,1));
-% spr(M.screen_hiv)% (m8 - diag(sum(m8,1)));
-% spr(M.screen_U)% (m9 - diag(sum(m9,1)));
-% spr(M.screen_Lf)% (m10 - diag(sum(m10,1)));
-% spr(M.screen_Ls)% (m11 - diag(sum(m11,1)));
-% spr(M.screen_I)% (m12 - diag(sum(m12,1)));
-% spr(M.screen_slum)% (m13 - diag(sum(m13,1)));
 
 % --- Get the nonlinear rates
 for ia = 1:length(gps.age)
@@ -677,9 +705,11 @@ for ia = 1:length(gps.age)
                 Rhi = getso('Rhi');
                 R   = getso('R');
 
-                m(Lfde, [U Ls Lfso Rhi R]) = 1;
-                m(Qfde, [Qu Qfso Qs]) = 1;
+                % m(Lfde, [U Ls Lfso Rhi R]) = 1;
+                % m(Qfde, [Qu Qfso Qs]) = 1;%(1-tpt_efficacy);%1;
 
+                m(Lfde, [U Ls Qu Qfso Qs Rhi R]) = 1*r.RR_ari_ch(ia);
+                
                 % Adjust for imunuty
                 cols = [Lfso, Ls, Qfso, Qs, Rhi, R];
                 m(:,cols) = m(:,cols)*(1-p.imm(ig));
@@ -687,10 +717,9 @@ for ia = 1:length(gps.age)
 
         end
         m(:,[s.hpos s.hart]) = m(:,[s.hpos s.hart])*p.HIVlam;
-        m(:,s.slum) = m(:,s.slum)*r.RRslum;
-          M.nlin.(age).(strain) = sparse(m - diag(sum(m,1)));
-         % M.nlin.(age).(strain) = (m - diag(sum(m,1)));
-    end
+        m(:,s.slum) = m(:,s.slum)*(r.RRslum*r.slum_on + (1-r.slum_on));
+        M.nlin.(age).(strain) = sparse(m - diag(sum(m,1)));
+     end
 end
 
 
@@ -735,6 +764,9 @@ M.lambda_dr = m_dr;
 
 %% -- - Get the mortality rates- for fit
 % First column is for non-TB-related mortality
+
+mfac=r.mfac;
+
 m = zeros(i.nstates,3);
 m(s.a0_4,1)   = r.mort(1);
 m(s.a5_9,1)   = r.mort(2);
@@ -749,12 +781,21 @@ m(s.postTByll,1) = m(s.postTByll,1)*1.1;
 % Second column is for HIV-ve TB mortality
 inds = intersect(s.hneg, s.infectious);
 m(inds,2) = r.mort_TB(1);
+inds = intersect(s.hneg, s.treated);
+m(inds,2) = r.mort_TB(1)*mfac;
 
 % Third column is for HIV+ve TB mortality
 inds = intersect(s.hpos, s.infectious);
 m(inds,3) = r.mort_TB(2);
+inds = intersect(s.hpos, s.treated);
+m(inds,2) = r.mort_TB(2)*mfac;
+
 inds = intersect(s.hart, s.infectious);
 m(inds,3) = r.mort_TB(3);
+inds = intersect(s.hart, s.treated);
+m(inds,2) = r.mort_TB(3)*mfac;
+
+
 M.mortvec = m;
 
 %% Mortlity for model output and Dalys
@@ -773,11 +814,20 @@ m(s.postTByll) = m(s.postTByll)*1.1;
 % Second column is for HIV-ve TB mortality
 inds = intersect(s.hneg, s.infectious);
 m(inds) = r.mort_TB(1);
+inds = intersect(s.hneg, s.treated);
+m(inds) = r.mort_TB(1)*mfac;
 
 % Third column is for HIV+ve TB mortality
 inds = intersect(s.hpos, s.infectious);
 m(inds) = r.mort_TB(2);
+inds = intersect(s.hpos, s.treated);
+m(inds) = r.mort_TB(2)*mfac;
+
 inds = intersect(s.hart, s.infectious);
 m(inds) = r.mort_TB(3);
+inds = intersect(s.hart, s.treated);
+m(inds) = r.mort_TB(3)*mfac;
 
 M.mu = m';
+M.p=p;
+M.r=r;

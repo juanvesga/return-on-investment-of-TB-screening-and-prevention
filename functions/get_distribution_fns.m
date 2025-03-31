@@ -19,7 +19,7 @@ if strcmp(distribution, 'lognorm')
     % Do the optimisation
     obj = @(x) sum((ff(x)./([2.5 50 97.5]/100) - 1).^2);
     [out, val] = fminsearch(obj,init,opts);
-    if val > 1e-2
+    if val > 5e-2
         error('Calibration setup not converged');
     end
     % Get the log-pdf
@@ -53,7 +53,7 @@ elseif strcmp(distribution, 'beta')
     % Do the optimisation
     obj = @(x) sum((ff(x)./([2.5 50 97.5]/100) - 1).^2);
     [out, val] = fminsearch(obj,init,opts);
-    if val > 1e-2
+    if val > 5e-2
         error('Calibration setup not converged');
     end
     % Get the log-pdf

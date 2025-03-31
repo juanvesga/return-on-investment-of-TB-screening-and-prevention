@@ -20,6 +20,9 @@ runtype='all';
 
 itv_labs={'PLHIV','HHC','PLHIV + HHC','PLHIV + HHC + High risk'};
 
+[ inc_plhiv, inc_slum]=...
+    deal(zeros(nsims,(2050-fityr),length(path)+1));
+
 [ inc_ds, inc_dr, mu_ds, mu_dr]=...
     deal(zeros(nsims,(2050-fityr),3*numel(gps.age)+1, length(path)+1));
 
@@ -27,7 +30,8 @@ itv_labs={'PLHIV','HHC','PLHIV + HHC','PLHIV + HHC + High risk'};
     screen_plhiv, tst_plhiv, tpt_plhiv, tx_fl_plhiv,tx_sl_plhiv,...
     screen_hhc, tst_hhc, tpt_hhc, tx_fl_hhc,tx_sl_hhc,...
     screen_slum, tst_slum, tpt_slum, tx_fl_slum,tx_sl_slum,...
-    daly_all, daly_plhiv, daly_slum, yll_all, yll_plhiv, yll_slum,yld_all, yld_plhiv, yld_slum]=...
+    daly_all, daly_plhiv, daly_slum,daly_ptb, yll_all, yll_plhiv, yll_slum, yll_ptb,...
+    yld_ptb,yld_all, yld_plhiv, yld_slum, mu_ptb]=...
     deal(zeros(nsims,(2050-fityr),numel(gps.age)+1, length(path)+1));
 
 [prevtb, prevtb_hpos, prevtb_hart, prevtb_slum, prevltbi, prevltbi_hpos,...
@@ -47,19 +51,46 @@ sfins                    =zeros(nsims,i.nx,length(path)+1);
 
 
 %
-parpool('local',8);
+ncores=maxNumCompThreads;
+parpool('local',ncores);
 ppm = ParforProgMon(location, nsims);
 parfor ii=1:nsims
     ppm.increment();
 
- % for ii=  1:nsims
- % 
- % disp(ii);
-% profile on
+% for ii=  1:nsims
+
+    % disp(ii);
+    % profile on
+
 
     x0=xvals(ii,:);
     [r,p] = allocate_parameters(x0,rsto,psto,xi);
+   p.country=location;
+
     init=sfin(ii,:);
+
+    hhc_n=get_screening_pop(init,s);
+
+    % tmp=diff(sfin(:,i.aux.lam_ds));
+    p.lam_ds=p.lam_ds(ii,:);
+    % 
+    % tmp=diff(sfin(:,i.aux.lam_dr));
+    p.lam_dr=p.lam_dr(ii,:);
+
+    p.U=hhc_n.U;
+    p.Lfds=hhc_n.Lfds;
+    p.Lsds=hhc_n.Lsds;
+    p.Ids=hhc_n.Ids;
+    p.Lfdr=hhc_n.Lfdr;
+    p.Lsdr=hhc_n.Lsdr;
+    p.Idr=hhc_n.Idr;
+
+
+
+
+    % hhc_fac= get_oversampleratios(init,s);
+    % 
+    % p.hhc_fac= hhc_fac;%p.hhc(ii).hhc_fac;
 
 
     % Baseline
@@ -71,11 +102,12 @@ parfor ii=1:nsims
         Mset{it}=fn_mk(p,r,it-1);%make_intervention(p, r, i, s, gps,intvn_seq);
 
     end
+
     M0=Mset{1};
 
     options = odeset('NonNegative',1:i.nstates,'RelTol',1e-7,'AbsTol',1e-7);
-
-    getsol = @(Mfinal) ode45(@(t,in)...
+    % 
+    getsol = @(Mfinal) ode15s(@(t,in)...
         goveqs_scaleup_itv(t, in, M0, Mfinal,[2023 2050], i,s,r,p, sel, agg,hivpoints),...
         (fityr:endyr) , init, options);
 
@@ -228,6 +260,11 @@ parfor ii=1:nsims
 
     inc_ds(ii,:,:,:)  = cat(2,sum(diff(squeeze(allsol(:,i.aux.inc_ds(1:4),:)),1),2)*p.pop, diff(squeeze(allsol(:,i.aux.inc_ds,:)),1)*p.pop);
     inc_dr(ii,:,:,:)  = cat(2,sum(diff(squeeze(allsol(:,i.aux.inc_dr(1:4),:)),1),2)*p.pop, diff(squeeze(allsol(:,i.aux.inc_dr,:)),1)*p.pop);
+    
+    inc_plhiv(ii,:,:)  = diff(squeeze(allsol(:,i.aux.inc_plhiv,:)),1)*p.pop;
+    inc_slum(ii,:,:)  =  diff(squeeze(allsol(:,i.aux.inc_slum,:)),1)*p.pop;
+    
+    
     screen_all(ii,:,:,:)  = cat(2,sum(diff(squeeze(allsol(:,i.aux.screen_all,:)),1),2)*p.pop, diff(squeeze(allsol(:,i.aux.screen_all,:)),1)*p.pop);
     screen_plhiv(ii,:,:,:)  = cat(2,sum(diff(squeeze(allsol(:,i.aux.screen_plhiv,:)),1),2)*p.pop, diff(squeeze(allsol(:,i.aux.screen_plhiv,:)),1)*p.pop);
     screen_hhc(ii,:,:,:)  = cat(2,sum(diff(squeeze(allsol(:,i.aux.screen_hhc,:)),1),2)*p.pop, diff(squeeze(allsol(:,i.aux.screen_hhc,:)),1)*p.pop);
@@ -254,15 +291,20 @@ parfor ii=1:nsims
     yll_all(ii,:,:,:)     = cat(2,sum(diff(squeeze(allsol(:,i.aux.yll_all,:)),1),2)*p.pop,diff(squeeze(allsol(:,i.aux.yll_all,:)),1)*p.pop);
     yll_plhiv(ii,:,:,:)     = cat(2,sum(diff(squeeze(allsol(:,i.aux.yll_plhiv,:)),1),2)*p.pop,diff(squeeze(allsol(:,i.aux.yll_plhiv,:)),1)*p.pop);
     yll_slum(ii,:,:,:)     = cat(2,sum(diff(squeeze(allsol(:,i.aux.yll_slum,:)),1),2)*p.pop,diff(squeeze(allsol(:,i.aux.yll_slum,:)),1)*p.pop);
+    yll_ptb(ii,:,:,:)     = cat(2,sum(diff(squeeze(allsol(:,i.aux.yll_ptb,:)),1),2)*p.pop,diff(squeeze(allsol(:,i.aux.yll_ptb,:)),1)*p.pop);
     yld_all(ii,:,:,:)     = cat(2,sum(diff(squeeze(allsol(:,i.aux.yld_all,:)),1),2)*p.pop,diff(squeeze(allsol(:,i.aux.yld_all,:)),1)*p.pop);
+    yld_ptb(ii,:,:,:)     = cat(2,sum(diff(squeeze(allsol(:,i.aux.yld_ptb,:)),1),2)*p.pop,diff(squeeze(allsol(:,i.aux.yld_ptb,:)),1)*p.pop);
+
     yld_plhiv(ii,:,:,:)     = cat(2,sum(diff(squeeze(allsol(:,i.aux.yld_plhiv,:)),1),2)*p.pop,diff(squeeze(allsol(:,i.aux.yld_plhiv,:)),1)*p.pop);
     yld_slum(ii,:,:,:)     = cat(2,sum(diff(squeeze(allsol(:,i.aux.yld_slum,:)),1),2)*p.pop,diff(squeeze(allsol(:,i.aux.yld_slum,:)),1)*p.pop);
-    mu_ds(ii,:,:,:)   = cat(2,sum(diff(squeeze(allsol(:,i.aux.mu_ds(1:4),:)),1),2)*p.pop,diff(squeeze(allsol(:,i.aux.mu_ds,:)),1)*p.pop);
-    mu_dr(ii,:,:,:)   = cat(2,sum(diff(squeeze(allsol(:,i.aux.mu_dr(1:4),:)),1),2)*p.pop,diff(squeeze(allsol(:,i.aux.mu_dr,:)),1)*p.pop);
+    mu_ds(ii,:,:,:)   =      cat(2,sum(diff(squeeze(allsol(:,i.aux.mu_ds(1:4),:)),1),2)*p.pop,diff(squeeze(allsol(:,i.aux.mu_ds,:)),1)*p.pop);
+    mu_dr(ii,:,:,:)   =  cat(2,sum(diff(squeeze(allsol(:,i.aux.mu_dr(1:4),:)),1),2)*p.pop,diff(squeeze(allsol(:,i.aux.mu_dr,:)),1)*p.pop);
+    mu_ptb(ii,:,:,:)   =  cat(2,sum(diff(squeeze(allsol(:,i.aux.mu_ptb,:)),1),2)*p.pop,diff(squeeze(allsol(:,i.aux.mu_ptb,:)),1)*p.pop);
 
     daly_all(ii,:,:,:)    = yll_all(ii,:,:,:)+ yld_all(ii,:,:,:);%cat(2,sum(diff(squeeze(allsol(:,i.aux.daly_all,:)),1),2)*p.pop,diff(squeeze(allsol(:,i.aux.daly_all,:)),1)*p.pop);
     daly_plhiv(ii,:,:,:)  = yll_plhiv(ii,:,:,:)+ yld_plhiv(ii,:,:,:);% cat(2,sum(diff(squeeze(allsol(:,i.aux.daly_plhiv,:)),1),2)*p.pop,diff(squeeze(allsol(:,i.aux.daly_plhiv,:)),1)*p.pop);
     daly_slum(ii,:,:,:)   = yll_slum(ii,:,:,:)+ yld_slum(ii,:,:,:);% cat(2,sum(diff(squeeze(allsol(:,i.aux.daly_slum,:)),1),2)*p.pop,diff(squeeze(allsol(:,i.aux.daly_slum,:)),1)*p.pop);
+    daly_ptb(ii,:,:,:)   = yll_ptb(ii,:,:,:)+ yld_ptb(ii,:,:,:);% cat(2,sum(diff(squeeze(allsol(:,i.aux.daly_slum,:)),1),2)*p.pop,diff(squeeze(allsol(:,i.aux.daly_slum,:)),1)*p.pop);
 
 
 
@@ -285,9 +327,7 @@ parfor ii=1:nsims
     alive_slum(ii,:,:,:) =  permute(cat(3,pop_slum,pop_slum_a0,pop_slum_a5,pop_slum_a10, pop_slum_a15p)*p.pop,[1 3 2]);
     alive_hhc(ii,:,:,:) = permute(cat(3,ntb_all,ntb_a0,ntb_a5,ntb_a10, ntb_a15p).*p.pop*(p.house_size-1),[1 3 2]);
 
-   
-
-    %% Usual Epi trends
+  
 
     tmp1=sum(diff(squeeze(allsol(:,i.aux.inc_ds(1:4),:)),1),2);
     tmp2=sum(diff(squeeze(allsol(:,i.aux.inc_dr(1:4),:)),1),2);
@@ -299,9 +339,20 @@ parfor ii=1:nsims
     mort_tb(ii,:,:)= 1e5*squeeze(tmp1+tmp2)./pop_all;
 
 
+    % figure;
+    % plot(inc_all(ii,:,1))
+    % hold on
+    % plot(inc_all(ii,:,2))
+    % plot(inc_all(ii,:,3))
+    % plot(inc_all(ii,:,4))
+    % plot(inc_all(ii,:,5))
+
+ 
+  
+  
     sfins(ii,:,:)=allsol(end,:,:);
 
-disp(ii);
+    disp(ii);
 end
 
 delete(gcp('nocreate'));
@@ -344,19 +395,26 @@ results.tx_sl_slum=tx_sl_slum;
 results.daly_all=daly_all;
 results.daly_plhiv=daly_plhiv;
 results.daly_slum=daly_slum;
+results.daly_ptb=daly_ptb;
 results.yll_all=yll_all;
 results.yll_plhiv=yll_plhiv;
 results.yll_slum=yll_slum;
+results.yll_ptb=yll_ptb;
 results.yld_all=yld_all;
 results.yld_plhiv=yld_plhiv;
 results.yld_slum=yld_slum;
+results.yld_ptb=yld_ptb;
 results.mu_ds=mu_ds;
 results.mu_dr=mu_dr;
+results.mu_ptb=mu_ptb;
 results.avagemort=avagemort;
 results.avagemort_plhiv=avagemort_plhiv;
 results.avagemort_slum=avagemort_slum;
 results.inc_all=inc_all;
 results.inc_mdr=inc_mdr;
+results.inc_plhiv=inc_plhiv;
+results.inc_slum=inc_slum;
+
 results.mort_tb=mort_tb;
 results.alive_all=alive_all;
 results.alive_hpos=alive_hpos;

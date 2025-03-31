@@ -1,17 +1,17 @@
 % Load Contact matrices (synth matricces in Prem et al 2021 PlosComBiol
-file=sprintf('%s','/data/contact_',country,'.csv');
+file=sprintf('%s','data/contact_',country,'.csv');
 contact_matrix = readtable(file);
 C=contact_matrix{:,:};
 
 %Load population
-population_table=readtable('/data/population.csv');
+population_table=readtable('data/population.csv');
 cols=size(population_table,2);
 id=find(strcmp(population_table{:,cols},country));
 pop_vec= population_table{id,1:(cols-1)};
 
 %% Proocess contact matrix
 %Symmetric matrix
-c_sym = (C + C')/2; 
+c_sym = (C + C')/2;
 
 % Per capita per year symmetric contact matrix
 c_mat = c_sym/max(c_sym(:));%./repmat(pop_vec',1,cols-1);
@@ -25,17 +25,9 @@ tmp(id)=[];
 period=5;
 hivpoints=interp1([1980 (1990+numel(id)):2022],[0 tmp],1980:1:2022,'pchip');
 
-if strcmp(country,'ZAF')
-
-hivdecline= 0.015;%((hivpoints(end-period)-hivpoints(end))/hivpoints(end-period))/period;
-
-else
-
 hivdecline= ((hivpoints(end-period)-hivpoints(end))/hivpoints(end-period))/period;
 
-end
-
-
+hivdecline= 0.015;
 tperiod=2022:1:(endyear+5);
 hivext=tperiod*0;
 
@@ -48,15 +40,17 @@ end
 
 hivpoints =[hivpoints , hivext(2:end)];
 
-% figure;plot(1980:1:(endyear+5), hivpoints*1000)
-
+%
+%    figure;plot(1980:1:(endyear+5), hivpoints*1000)
+% xlim([2012 2050])
+% ylim([0 2])
 
 
 % ylim([-0.1,0.2])
 
 %% Load Fiting data
 
-target_data=readtable('/data/who_data.csv');
+target_data=readtable('data/who_data.csv');
 id=find(strcmp(target_data{:,2},country));
 target_data_full=target_data(id,:);
 target_data=target_data(id,[2:4,end]);
@@ -88,11 +82,11 @@ target_data_full(next_rs(2),'year')=table(prev_data{country,"year"});
 target_data_full(next_rs(2),'estimate')=table(prev_data{country,"prevalence"});
 
 if prev_data{country,"low"}==-99
-target_data_full(next_rs(2),'low')= table(max(-99,prev_data{country,"prevalence"} * 0.8));
-target_data_full(next_rs(2),'high')=table(max(-99,prev_data{country,"prevalence"} * 1.2));
+    target_data_full(next_rs(2),'low')= table(max(-99,prev_data{country,"prevalence"} * 0.8));
+    target_data_full(next_rs(2),'high')=table(max(-99,prev_data{country,"prevalence"} * 1.2));
 else
-target_data_full(next_rs(2),'low')=table(prev_data{country,"low"});
-target_data_full(next_rs(2),'high')=table(prev_data{country,"high"});
+    target_data_full(next_rs(2),'low')=table(prev_data{country,"low"});
+    target_data_full(next_rs(2),'high')=table(prev_data{country,"high"});
 end
 target_data_full(next_rs(2),'var')={'prev_hi'};
 
@@ -136,11 +130,11 @@ target_data_full(next_rs(5),'year')=table(hrdata{country,"year"});
 target_data_full(next_rs(5),'estimate')=table(hrdata{country,"incidence"});
 
 if hrdata{country,"low"}==-99
-target_data_full(next_rs(5),'low')= table(max(-99,hrdata{country,"incidence"} * 0.8));
-target_data_full(next_rs(5),'high')=table(max(-99,hrdata{country,"incidence"} * 1.2));
+    target_data_full(next_rs(5),'low')= table(max(-99,hrdata{country,"incidence"} * 0.8));
+    target_data_full(next_rs(5),'high')=table(max(-99,hrdata{country,"incidence"} * 1.2));
 else
-target_data_full(next_rs(5),'low')=table(hrdata{country,"low"});
-target_data_full(next_rs(5),'high')=table(hrdata{country,"high"});
+    target_data_full(next_rs(5),'low')=table(hrdata{country,"low"});
+    target_data_full(next_rs(5),'high')=table(hrdata{country,"high"});
 end
 target_data_full(next_rs(5),'var')={'inc_slum'};
 
@@ -174,5 +168,38 @@ target_data_full(next_rs(7),'var')=hhc_data(2,'indicator');
 %Remove Notification data and then edit plot_targets replace with
 %notificationcoverage distribution
 notifiedrate=target_data{strcmp(target_data.var,'notif'),"estimate"}';
+toDelete = strcmp(target_data.var, 'txcov');
+target_data(toDelete,:) = [];
 toDelete = strcmp(target_data.var, 'notif');
 target_data(toDelete,:) = [];
+
+
+
+
+% Leave first and last data point for time series
+toDelete = strcmp(target_data.var, 'inc_all');
+id=find(toDelete==1);
+toDelete([id(1) id(end)])=0;
+target_data(toDelete,:) = [];
+
+toDelete = strcmp(target_data.var, 'inc_mdr');
+id=find(toDelete==1);
+toDelete([id(1) id(end)])=0;
+target_data(toDelete,:) = [];
+
+toDelete = strcmp(target_data.var, 'inc_tbhiv');
+id=find(toDelete==1);
+toDelete([id(1) id(end)])=0;
+target_data(toDelete,:) = [];
+
+toDelete = strcmp(target_data.var, 'mort_tbhiv');
+id=find(toDelete==1);
+toDelete([id(1) id(end)])=0;
+target_data(toDelete,:) = [];
+
+toDelete = strcmp(target_data.var, 'mort_tbhn');
+target_data(toDelete,:) = [];
+
+
+
+

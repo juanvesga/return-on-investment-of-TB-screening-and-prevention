@@ -41,6 +41,8 @@ auxnames = {...
     'hiv', ...
     'inc_ds',...
     'inc_dr',...
+    'inc_plhiv',...
+    'inc_slum',...
     'screen_all',...
     'screen_plhiv',...
     'screen_hhc',...
@@ -67,11 +69,17 @@ auxnames = {...
     'yld_all',...
     'yld_plhiv',...
     'yld_slum',...
+     'yld_ptb',...
     'yll_all',...
     'yll_plhiv',...
     'yll_slum',...
+    'yll_ptb',...
     'mu_ds',...
-    'mu_dr'...
+    'mu_dr',...
+    'mu_ptb',...
+    'lam_ds',...
+    'lam_dr',...
+    'screen_hhc_source'...
     };
 
 auxinds  = [...
@@ -81,8 +89,10 @@ auxinds  = [...
     3,...pt
     2,... newart
     4, ...hiv
-    3*numel(gps.age)... inc_ds
-    3*numel(gps.age)... inc_dr
+    3*numel(gps.age),... inc_ds
+    3*numel(gps.age),... inc_dr
+    1,... inc_plhiv
+    1,... inc_slum
     numel(gps.age),... screen
     numel(gps.age),... screen
     numel(gps.age),... screen
@@ -109,12 +119,18 @@ auxinds  = [...
     numel(gps.age),... yld
     numel(gps.age),... yld
     numel(gps.age),... yld
+    numel(gps.age),... yld
+    numel(gps.age),... yll
     numel(gps.age),... yll
     numel(gps.age),... yll
     numel(gps.age),... yll
     3*numel(gps.age),... mu_ds
-    3*numel(gps.age)... mu_dr
-    ];
+    3*numel(gps.age),... mu_dr
+     numel(gps.age),... mu_ptb
+     numel(gps.age),...%lam_ds
+     numel(gps.age),...%lam_ds
+     4]; % screen HHCsource 
+
 
 
 for ii = 1:length(auxnames)
@@ -130,13 +146,19 @@ s.nstates=(1:i.nstates);
 s.ch = [s.a0_4, s.a5_9, s.a10_15];
 s.ad = s.a15p;
 s.hivpositive= [s.hpos, s.hart];
-s.hhc        = intersect(s.hneg, s.no_slum);
+if (strcmp(country,"GEO")||strcmp(country,"BRA"))
+s.hhc        = intersect(s.nstates, s.no_slum);%
+else
+s.hhc        = s.nstates;
+end
+
 s.infectious = [s.I,s.Dx,intersect(s.Tx,s.mdr)];
 s.prevalent  = [s.I, s.Dx];
 s.ltbiprevalent  = [s.Lf s.Ls s.Pf s.Ps s.Qf s.Qs];
-s.TBmort     = [s.I s.Dx];
+s.TBmort     = [s.I s.Dx s.Tx s.Tx2];
 s.ipt        = [s.Pu s.Pf s.Ps];
 s.treated    = [s.Tx s.Tx2];
+s.notif      = [s.Dx];
 s.tbcare     = [s.Tx s.Tx2];
 s.notbcare   = [s.Pu, s.Qu, s.Pf, s.Qf, s.Qs, s.Ps ,s.I, s.Rhi  s.R];
 s.postTB     = [s.Rhi s.R];
@@ -202,12 +224,12 @@ sel.acqu = sparse(tmp - diag(diag(tmp)));
 
 % TB notification
 tmp = zeros(2,i.nstates);
-tmp(1,s.treated)  = 1;
-tmp(2,intersect([s.Tx2],s.mdr))  = 1;
+tmp(1,s.notif)  = 1;
+tmp(2,intersect(s.notif,s.mdr))  = 1;
 agg.notif = sparse(tmp);
 
 tmp = zeros(i.nstates);
-tmp(s.treated,:) = 1;
+tmp(s.notif,:) = 1;
 tmp=tmp.*check;
 sel.notif = sparse(tmp - diag(diag(tmp)));
 
@@ -234,6 +256,48 @@ tmp(s.mdr,s.ds)=0;
 tmp(s.slum,s.no_slum)=0;
 tmp(s.no_slum,s.slum)=0;
 sel.ipt = sparse(tmp - diag(diag(tmp)));
+
+
+tmp = zeros(i.nstates);
+
+tmp=tmp.*check;
+
+ tmp(intersect(s.Pu,s.hart),intersect(s.hpos,s.U )) = 1;
+ tmp(intersect(s.Pf,s.hart),intersect(s.hpos,s.Lf )) = 1;
+  tmp(intersect(s.Ps,s.hart),intersect(s.hpos,s.Ls )) = 1;
+tmp(s.ds,s.mdr)=0;
+tmp(s.mdr,s.ds)=0;
+tmp(s.slum,s.no_slum)=0;
+tmp(s.no_slum,s.slum)=0;
+sel.newartipt = sparse(tmp - diag(diag(tmp)));
+
+
+%% IPT HHC
+tmp = zeros(i.nstates);
+tmp(intersect(s.Pu,s.hhc),intersect(s.U,s.hhc)) = 1;
+tmp(intersect(s.Pf,s.hhc),intersect(s.Lf,s.hhc)) = 1;
+tmp(intersect(s.Ps,s.hhc),intersect(s.Ls,s.hhc)) = 1;
+tmp=tmp.*check;
+
+tmp(s.ds,s.mdr)=0;
+tmp(s.mdr,s.ds)=0;
+tmp(s.slum,s.no_slum)=0;
+tmp(s.no_slum,s.slum)=0;
+sel.ipt_hhc = sparse(tmp - diag(diag(tmp)));
+
+%% IPT Slum
+tmp = zeros(i.nstates);
+tmp(intersect(s.Pu,s.slum),intersect(s.U,s.slum)) = 1;
+tmp(intersect(s.Pf,s.slum),intersect(s.Lf,s.slum)) = 1;
+tmp(intersect(s.Ps,s.slum),intersect(s.Ls,s.slum)) = 1;
+tmp=tmp.*check;
+
+tmp(s.ds,s.mdr)=0;
+tmp(s.mdr,s.ds)=0;
+tmp(s.slum,s.no_slum)=0;
+tmp(s.no_slum,s.slum)=0;
+sel.ipt_slum = sparse(tmp - diag(diag(tmp)));
+
 
 % Selectors for New on ART
 tmp = zeros(2,i.nstates);
@@ -297,7 +361,7 @@ end
 agg.inc_ds = sparse(tmp);
 
 tmp = zeros(i.nstates);
-tmp(intersect(s.I,s.ds),:) = 1;
+tmp(intersect(s.I,s.ds),s.ds) = 1;
 tmp=tmp.*check;
 sel.inc_ds = sparse(tmp - diag(diag(tmp)));
 
@@ -317,9 +381,35 @@ end
 agg.inc_dr = sparse(tmp);
 
 tmp = zeros(i.nstates);
-tmp(intersect(s.I,s.mdr),:) = 1;
+tmp(intersect(s.I,s.mdr),s.mdr) = 1;
 tmp=tmp.*check;
 sel.inc_dr = sparse(tmp - diag(diag(tmp)));
+
+
+
+% Inc PLHIV
+tmp = zeros(1,i.nstates);
+tmp(1,intersect(s.I,s.hivpositive))  = 1;
+agg.inc_plhiv = sparse(tmp);
+
+tmp = zeros(i.nstates);
+tmp(intersect(s.I,s.hivpositive),s.hivpositive) = 1;
+tmp=tmp.*check;
+sel.inc_plhiv = sparse(tmp - diag(diag(tmp)));
+
+
+% Inc Slums
+tmp = zeros(1,i.nstates);
+tmp(1,intersect(s.I,s.slum))  = 1;
+agg.inc_slum = sparse(tmp);
+
+tmp = zeros(i.nstates);
+tmp(intersect(s.I,s.slum),s.slum) = 1;
+tmp=tmp.*check;
+sel.inc_slum = sparse(tmp - diag(diag(tmp)));
+
+
+
 
 %% Aggregators for screen, tst, tpt, treatment counts
 [tmp0, tmp1, tmp2, tmp3,...
@@ -389,23 +479,61 @@ agg.tx_sl_plhiv = sparse(tmp17);
 agg.tx_sl_hhc = sparse(tmp18);
 agg.tx_sl_slum = sparse(tmp19);
 
+tmp = zeros(4,i.nstates);
+tmp(1,intersect(s.Pu,s.hhc)) = 1;
+tmp(2,intersect(s.Pf,s.hhc)) = 1;
+tmp(3,intersect(s.Ps,s.hhc)) = 1;
+tmp(4,intersect([s.Tx s.Tx2],s.hhc)) = 1;
+agg.screen_hhc_source = sparse(tmp);
 
 %% Selectors for tsts, tpt screen and treatment counts
 tmp = zeros(i.nstates);
-tmp([s.treated,s.ipt],[s.U s.Lf s.Ls s.I s.Dx]) = 1;
+tmp(s.Pu,s.U) = 1;
+tmp(s.Pf,s.Lf) = 1;
+tmp(s.Ps,s.Ls) = 1;
+tmp(s.treated,s.I) = 1;
 tmp=tmp.*check;
 for ii = 1:(numel(gps.age))
     age=gps.age{ii};
     tmp(intersect(intersect(s.Pu,s.hart),s.(age)),intersect(intersect(s.hpos,s.U ),s.(age))) = 1;
     tmp(intersect(intersect(s.Pf,s.hart),s.(age)),intersect(intersect(s.hpos,s.Lf ),s.(age))) = 1;
     tmp(intersect(intersect(s.Ps,s.hart),s.(age)),intersect(intersect(s.hpos,s.Ls ),s.(age))) = 1;
-    tmp(intersect(intersect(s.treated,s.hart),s.(age)),intersect(intersect(s.hpos,[s.I s.Dx] ),s.(age))) = 1;
+    tmp(intersect(intersect(s.treated,s.hart),s.(age)),intersect(intersect(s.hpos,[s.I] ),s.(age))) = 1;
 end
 tmp(s.ds,s.mdr)=0;
 tmp(s.mdr,s.ds)=0;
 tmp(s.slum,s.no_slum)=0;
 tmp(s.no_slum,s.slum)=0;
 sel.screen = sparse(tmp - diag(diag(tmp)));
+
+%% Screen HHC
+tmp = zeros(i.nstates);
+tmp(intersect(s.Pu,s.hhc),intersect(s.U,s.hhc)) = 1;
+tmp(intersect(s.Pf,s.hhc),intersect(s.Lf,s.hhc)) = 1;
+tmp(intersect(s.Ps,s.hhc),intersect(s.Ls,s.hhc)) = 1;
+tmp(intersect(s.treated,s.hhc),intersect(s.I,s.hhc)) = 1;
+
+tmp=tmp.*check;
+tmp(s.ds,s.mdr)=0;
+tmp(s.mdr,s.ds)=0;
+tmp(s.slum,s.no_slum)=0;
+tmp(s.no_slum,s.slum)=0;
+sel.screen_hhc = sparse(tmp - diag(diag(tmp)));
+
+
+%% Screen slum
+tmp = zeros(i.nstates);
+tmp(intersect(s.Pu,s.slum),intersect(s.U,s.slum)) = 1;
+tmp(intersect(s.Pf,s.slum),intersect(s.Lf,s.slum)) = 1;
+tmp(intersect(s.Ps,s.slum),intersect(s.Ls,s.slum)) = 1;
+tmp(intersect(s.treated,s.slum),intersect(s.I,s.slum)) = 1;
+
+tmp=tmp.*check;
+tmp(s.ds,s.mdr)=0;
+tmp(s.mdr,s.ds)=0;
+tmp(s.slum,s.no_slum)=0;
+tmp(s.no_slum,s.slum)=0;
+sel.screen_slum = sparse(tmp - diag(diag(tmp)));
 
 
 tmp = zeros(i.nstates);
@@ -437,6 +565,7 @@ sel.tx_sl = sparse(tmp - diag(diag(tmp)));
 
 %% Selectors for DALYs
 tmp0 = zeros(numel(gps.age) ,i.nstates);
+yldptb=tmp0;
 %YLD
 for ii = 1:(numel(gps.age))
     age=gps.age{ii};
@@ -448,6 +577,7 @@ tmp0(ii,intersect(intersect(s.hivpositive,s.infectious),s.(age)))=0.408; % Weigh
 % tmp0(ii,intersect(ind,s.(age))) = 0.078; % Weight HIV w ART
 ind=s.postTB;
 tmp0(ii,intersect(ind,s.(age))) = 0.036; % Weight postTB
+yldptb(ii,intersect(ind,s.(age))) = 0.036; % Weight postTB
 end
 
 tmp1=tmp0;
@@ -462,6 +592,7 @@ tmp2(:,s.hivpositive) = 0; % remove hiv
 agg.yld_all = sparse(tmp0);
 agg.yld_plhiv = sparse(tmp1);
 agg.yld_slum = sparse(tmp2);
+agg.yld_ptb = sparse(yldptb);
 
 %YLL
 %p.weights_age=[87.007 , 82.03, 76.05, 37.7];
@@ -472,11 +603,16 @@ pars{country,'yll5_9'},...
 pars{country,'yll10_14'},...
 pars{country,'yll15p'}];
 tmp0 = zeros(numel(gps.age) ,i.nstates);
+ptbyll = zeros(numel(gps.age) ,i.nstates);
+ptbmu = zeros(numel(gps.age) ,i.nstates);
+
 for ii = 1:(numel(gps.age))
 age=gps.age{ii};
 tmp0(ii,intersect(s.infectious,s.(age))) = weights_age(ii); % TB by age
 % tmp0(ii,intersect(s.hpos,s.(age)))= weights_age(ii); % HIV 
-tmp0(ii,intersect(s.postTByll,s.(age)))= weights_age(ii); % HIV 
+tmp0(ii,intersect(s.postTByll,s.(age)))= weights_age(ii); %  
+ptbyll(ii,intersect(s.postTByll,s.(age)))= weights_age(ii); % PTBD 
+ptbmu(ii,intersect(s.postTByll,s.(age)))= 1; % PTBD 
 end
 
 % tmp0(1,intersect(s.infectious,s.a0_4))=weights_age(1);
@@ -506,8 +642,8 @@ tmp2(:,s.hivpositive) = 0; % remove hiv
 agg.yll_all = sparse(tmp0);
 agg.yll_plhiv = sparse(tmp1);
 agg.yll_slum = sparse(tmp2);
-
-
+agg.yll_ptb = sparse(ptbyll);
+agg.mu_ptb = sparse(ptbmu);
 % Sel for Mortality DS
 tmp = zeros(3*numel(gps.age) ,i.nstates);
 

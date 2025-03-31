@@ -1,21 +1,21 @@
 
 function [r,p] = allocate_parameters(x,r,p,xi)
 
-r.beta          =  x(xi.r_beta)/p.scale(xi.r_beta);
-rf_beta_mdr      = x(xi.rf_beta_mdr)/p.scale(xi.rf_beta_mdr);
-rf_mort_TB      =   x(xi.rf_mort_TB)/p.scale(xi.rf_mort_TB);
-rf_mort_TBh     =x(xi.rf_mort_TBh)/p.scale(xi.rf_mort_TBh);
-r.RRslum        = x(xi.r_RRslum)/p.scale(xi.r_RRslum);
-r.RRhiv         = x(xi.r_RRhiv )/p.scale(xi.r_RRhiv );
-rf_careseeking_mo= 12;% x(xi.rf_careseeking_mo )/p.scale(xi.rf_careseeking_mo);
-p.Tx_init       = x(xi.p_Tx_init)/p.scale(xi.p_Tx_init);
-p.Tx_init2       = x(xi.p_Tx_init)/p.scale(xi.p_Tx_init);
-r.ART_init      =  x(xi.r_ART_init)/p.scale(xi.r_ART_init);
-p.IPThiv        =  x(xi.p_IPThiv)/p.scale(xi.p_IPThiv);
-p.ntpcov       =  x(xi.p_ntpcov_dr)/p.scale(xi.p_ntpcov_dr);
-p.ntpcov_dr    =  x(xi.p_ntpcov_dr)/p.scale(xi.p_ntpcov_dr);
-p.hhcovu5      =  x(xi.p_hhcovu5)/p.scale(xi.p_hhcovu5);
-p.hhcov        =  x(xi.p_hhcov)/p.scale(xi.p_hhcov);
+r.beta            =  exp(x(xi.r_beta));%(xi.r_beta);
+rf_beta_mdr       =  exp(x(xi.rf_beta_mdr));%(xi.rf_beta_mdr);
+rf_mort_TB        =  exp(x(xi.rf_mort_TB));%(xi.rf_mort_TB);
+rf_mort_TBh       =  exp(x(xi.rf_mort_TBh));%(xi.rf_mort_TBh);
+r.RRslum          =  exp(x(xi.r_RRslum));%(xi.r_RRslum);
+r.RRhiv           =  exp(x(xi.r_RRhiv ));%(xi.r_RRhiv );
+rf_careseeking_mo =  exp(x(xi.rf_careseeking_mo));%(xi.rf_careseeking_mo);
+p.Tx_init         =  exp(x(xi.p_Tx_init));%(xi.p_Tx_init);
+p.Tx_init2        =  exp(x(xi.p_Tx_init2));%(xi.p_Tx_init);
+r.ART_init        =  exp(x(xi.r_ART_init));%(xi.r_ART_init);
+p.IPThiv          =  exp(x(xi.p_IPThiv));%(xi.p_IPThiv);
+p.ntpcov          =  exp(x(xi.p_ntpcov));%(xi.p_ntpcov_dr);
+p.ntpcov_dr       =  exp(x(xi.p_ntpcov_dr));%(xi.p_ntpcov_dr);
+p.hhcscaleu5      =  exp(x(xi.p_hhcscaleu5));%(xi.p_hhcscaleu5);
+p.hhcscale        =  exp(x(xi.p_hhcscale));%(xi.p_hhcscale);
 
 
 r.beta_mdr = r.beta *rf_beta_mdr;
@@ -37,24 +37,11 @@ r.mort_TB(3)    = r.mort_TB0*rf_mort_TBh*r.ARTred;
 %Careseking
 r.careseeking=12/rf_careseeking_mo;
 
-% % % %% pass manual fitting values
-% x(xi.r_beta) = r.beta* p.scale(xi.r_beta)
-% x(xi.rf_beta_mdr) = rf_beta_mdr* p.scale(xi.rf_beta_mdr)
-% x(xi.rf_mort_TB) = rf_mort_TB* p.scale(xi.rf_mort_TB)
-% x(xi.rf_mort_TBh) = rf_mort_TBh* p.scale(xi.rf_mort_TBh)
-% x(xi.r_RRslum) = r.RRslum * p.scale(xi.r_RRslum)
-% x(xi.r_RRhiv) = r.RRhiv * p.scale(xi.r_RRhiv)
-% x(xi.rf_careseeking_mo) = rf_careseeking_mo * p.scale(xi.rf_careseeking_mo)
-% x(xi.p_Tx_init) = p.Tx_init * p.scale(xi.p_Tx_init)
-% x(xi.p_Tx_init2) = p.Tx_init * p.scale(xi.p_Tx_init2)
-% x(xi.r_ART_init) = r.ART_init* p.scale(xi.r_ART_init)
-% x(xi.p_IPThiv) = p.IPThiv * p.scale(xi.p_IPThiv)
-% x(xi.p_ntpcov) = p.ntpcov * p.scale(xi.p_ntpcov)
-% x(xi.p_ntpcov_dr) = p.ntpcov_dr * p.scale(xi.p_ntpcov_dr)
-% x(xi.p_hhcovu5) = p.hhcovu5 * p.scale(xi.p_hhcovu5)
-% x(xi.p_hhcov) = p.hhcov * p.scale(xi.p_hhcov)
-% % % % % %
-% save_results(x,'bestset','ZAF','mle');
+p.tx_init       =  p.Tx_init.*[1 1];
+p.tx_init2       =  p.Tx_init2.*[1 1];
+
+%% 
+r.hhc_scale = [p.hhcscaleu5 ,p.hhcscale ,p.hhcscale ,p.hhcscale ];
 
 % Construct vector for progression from 'fast' latent infection, each
 % element representing a different HIV status: 1.HIV-ve, 2.HIV+ve, 3.On ART
@@ -66,7 +53,7 @@ r.progression = tmp;
 % Construct vector for progression from 'slow' latent infection, each
 % element representing a different HIV status: 1.HIV-ve, 2.HIV+ve, 3.On ART
 tmp = r.reactivation0(1)*[1 1 1;1 1 1];
-tmp(:,[2,3]) = tmp(:,[2,3])*r.RRhiv .*[1 r.ARTred ;1 r.ARTred] ;
+tmp(:,[2,3]) = tmp(:,[2,3])*r.RRhiv .*[1 r.ARTred ;1 r.ARTred];
 tmp(2,:)=tmp(2,:).*r.RRslum;
 r.reactivation = tmp;
 
